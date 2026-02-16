@@ -112,12 +112,15 @@ class AnthropicMessagesConfig(BaseAnthropicMessagesConfig):
     ) -> Tuple[dict, Optional[str]]:
         import os
 
-        # Check for Anthropic OAuth token in Authorization header
+        # Resolve api_key from env BEFORE OAuth detection so that
+        # OAuth tokens stored in ANTHROPIC_API_KEY are handled correctly.
+        if api_key is None:
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+
+        # Check for Anthropic OAuth token in api_key or Authorization header
         headers, api_key = optionally_handle_anthropic_oauth(
             headers=headers, api_key=api_key
         )
-        if api_key is None:
-            api_key = os.getenv("ANTHROPIC_API_KEY")
 
         if "x-api-key" not in headers and "authorization" not in headers and api_key:
             headers["x-api-key"] = api_key

@@ -35,6 +35,9 @@ class AnthropicSkillsConfig(BaseSkillsAPIConfig):
         """Add Anthropic-specific headers"""
         from litellm.llms.anthropic.common_utils import AnthropicModelInfo
 
+        from litellm.llms.anthropic.common_utils import optionally_handle_anthropic_oauth
+        from litellm.types.llms.anthropic import ANTHROPIC_OAUTH_TOKEN_PREFIX
+
         # Get API key
         api_key = None
         if litellm_params:
@@ -44,8 +47,12 @@ class AnthropicSkillsConfig(BaseSkillsAPIConfig):
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY is required for Skills API")
 
-        # Add required headers
-        headers["x-api-key"] = api_key
+        # Handle OAuth tokens: use Authorization: Bearer instead of x-api-key
+        headers, api_key = optionally_handle_anthropic_oauth(
+            headers=headers, api_key=api_key
+        )
+        if "x-api-key" not in headers and "authorization" not in headers:
+            headers["x-api-key"] = api_key
         headers["anthropic-version"] = "2023-06-01"
         
         # Add beta header for skills API
