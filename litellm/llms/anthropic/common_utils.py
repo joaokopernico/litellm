@@ -38,9 +38,18 @@ def optionally_handle_anthropic_oauth(
     Returns:
         Tuple of (updated headers, api_key)
     """
+    # Check Authorization header (passthrough / forwarded requests)
     auth_header = headers.get("authorization", "")
     if auth_header and auth_header.startswith(f"Bearer {ANTHROPIC_OAUTH_TOKEN_PREFIX}"):
         api_key = auth_header.replace("Bearer ", "")
+        headers.pop("x-api-key", None)
+        headers["anthropic-beta"] = ANTHROPIC_OAUTH_BETA_HEADER
+        headers["anthropic-dangerous-direct-browser-access"] = "true"
+        return headers, api_key
+    # Check api_key directly (standard chat/completion flow)
+    if api_key and api_key.startswith(ANTHROPIC_OAUTH_TOKEN_PREFIX):
+        headers.pop("x-api-key", None)
+        headers["authorization"] = f"Bearer {api_key}"
         headers["anthropic-beta"] = ANTHROPIC_OAUTH_BETA_HEADER
         headers["anthropic-dangerous-direct-browser-access"] = "true"
     return headers, api_key
@@ -366,12 +375,18 @@ class AnthropicModelInfo(BaseLLMModelInfo):
         if container_with_skills_used:
             betas.add("skills-2025-10-02")
 
+        _is_oauth = api_key and api_key.startswith(ANTHROPIC_OAUTH_TOKEN_PREFIX)
         headers = {
             "anthropic-version": anthropic_version or "2023-06-01",
-            "x-api-key": api_key,
             "accept": "application/json",
             "content-type": "application/json",
         }
+        if _is_oauth:
+            headers["authorization"] = f"Bearer {api_key}"
+            headers["anthropic-dangerous-direct-browser-access"] = "true"
+            betas.add(ANTHROPIC_OAUTH_BETA_HEADER)
+        else:
+            headers["x-api-key"] = api_key
 
         if user_anthropic_beta_headers is not None:
             betas.update(user_anthropic_beta_headers)
